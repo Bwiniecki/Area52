@@ -1015,3 +1015,727 @@ function setupModeToggle() {
     });
 }
 
+
+
+// ============================================================================
+// PLAYER MOVEMENT
+// ============================================================================
+function updatePlayer() {
+    if (!playerShip) return;
+    
+    if (keys.left) {
+        playerShip.position.x -= CONFIG.playerSpeed;
+    }
+    if (keys.right) {
+        playerShip.position.x += CONFIG.playerSpeed;
+    }
+    
+    // Constrain to bounds
+    playerShip.position.x = Math.max(-CONFIG.playerBounds, Math.min(CONFIG.playerBounds, playerShip.position.x));
+}
+
+// ============================================================================
+// SHOOTING SYSTEM
+// ============================================================================
+function shoot() {
+    if (!playerShip) return;
+    
+    const now = Date.now();
+    if (now - lastShootTime < CONFIG.shootCooldown) return;
+    lastShootTime = now;
+    
+    // Create bullet
+    const bulletGeometry = new THREE.SphereGeometry(CONFIG.bulletRadius, 8, 8);
+    const bulletMaterial = new THREE.MeshBasicMaterial({
+        color: CONFIG.bulletColor,
+        emissive: CONFIG.bulletColor
+    });
+    
+    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+    bullet.position.copy(playerShip.position);
+    bullet.position.y += 0.5;
+    bullet.position.z -= 1;
+    
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(CONFIG.bulletRadius * 2, 8, 8);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: CONFIG.bulletColor,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    bullet.add(glow);
+    
+    scene.add(bullet);
+    bullets.push(bullet);
+}
+
+function updateBullets() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        bullet.position.z -= CONFIG.bulletSpeed;
+        
+        // Remove if off screen
+        if (bullet.position.z < -30) {
+            scene.remove(bullet);
+            bullets.splice(i, 1);
+        }
+    }
+}
+
+// ============================================================================
+// LASER SYSTEM
+// ============================================================================
+function checkLaserAvailability() {
+    // Laser becomes available at wave 5, 10, 15, etc.
+    // Only becomes available at exact intervals, and only if not used in current cycle
+    if (!laserActive) {
+        // Check if current wave is an exact interval (5, 10, 15, etc.)
+        if (wave >= LASER_INTERVAL && wave % LASER_INTERVAL === 0) {
+            // Calculate which cycle we're in (wave 5 = cycle 1, wave 10 = cycle 2, etc.)
+            const currentCycle = wave / LASER_INTERVAL;
+            
+            // Calculate which cycle laser was last used in
+            const lastUsedCycle = laserLastUsedWave > 0 ? laserLastUsedWave / LASER_INTERVAL : 0;
+            
+            // Only make available if we're in a NEW cycle (not used yet this cycle)
+            // e.g., if used at wave 5 (cycle 1), only available again at wave 10 (cycle 2)
+            if (currentCycle > lastUsedCycle) {
+                laserAvailable = true;
+                updateLaserDisplay();
+            } else {
+                laserAvailable = false;
+                updateLaserDisplay();
+            }
+        } else {
+            // Not at an interval wave, laser not available
+            laserAvailable = false;
+            updateLaserDisplay();
+        }
+    }
+}
+
+function updateLaserDisplay() {
+    const laserDisplay = document.getElementById('laser-display');
+    if (laserAvailable && !laserActive) {
+        laserDisplay.classList.add('available');
+        laserDisplay.classList.remove('charging');
+        laserDisplay.textContent = '[Q] LASER READY ⚡';
+    } else if (laserActive) {
+        laserDisplay.classList.add('available');
+        laserDisplay.classList.remove('charging');
+        laserDisplay.textContent = '>>> FIRING LASER <<<';
+    } else {
+        laserDisplay.classList.remove('available');
+        laserDisplay.classList.add('charging');
+        const nextWave = (Math.floor(wave / LASER_INTERVAL) + 1) * LASER_INTERVAL;
+        laserDisplay.textContent = `[Q] LASER (Wave ${nextWave})`;
+    }
+}
+
+function fireLaser() {
+    if (!laserAvailable || laserActive || !playerShip) return;
+    
+    laserAvailable = false;
+    laserActive = true;
+    laserLastUsedWave = wave;
+    updateLaserDisplay();
+    
+    // Create laser beam
+    const laserGeometry = new THREE.BoxGeometry(0.3, 0.3, 100);
+    const laserMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.8
+    });
+    
+    laserBeam = new THREE.Group();
+    
+    // Core beam
+    const core = new THREE.Mesh(laserGeometry, laserMaterial);
+    core.position.z = -50;
+    laserBeam.add(core);
+    
+    // Outer glow
+    const glowGeometry = new THREE.BoxGeometry(0.8, 0.8, 100);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.z = -50;
+    laserBeam.add(glow);
+    
+    // Outer glow 2
+    const glow2Geometry = new THREE.BoxGeometry(1.5, 1.5, 100);
+    const glow2Material = new THREE.MeshBasicMaterial({
+        color: 0x00aaff,
+        transparent: true,
+        opacity: 0.15
+    });
+    const glow2 = new THREE.Mesh(glow2Geometry, glow2Material);
+    glow2.position.z = -50;
+    laserBeam.add(glow2);
+    
+    laserBeam.position.copy(playerShip.position);
+    laserBeam.position.y += 0.5;
+    
+    scene.add(laserBeam);
+    
+    // End laser after duration
+    setTimeout(() => {
+        endLaser();
+    }, LASER_DURATION);
+}
+
+function updateLaser() {
+    if (!laserActive || !laserBeam || !playerShip) return;
+    
+    // Follow player X position
+    laserBeam.position.x = playerShip.position.x;
+    
+    // Pulsing effect
+    const pulse = 0.8 + Math.sin(Date.now() * 0.01) * 0.2;
+    laserBeam.children.forEach((child, i) => {
+        if (child.material) {
+            child.material.opacity = (i === 0 ? 0.8 : i === 1 ? 0.3 : 0.15) * pulse;
+        }
+    });
+    
+    // Check collision with all aliens
+    checkLaserCollisions();
+}
+
+function checkLaserCollisions() {
+    if (!laserBeam) return;
+    
+    const laserX = laserBeam.position.x;
+    const laserHitWidth = 1.0; // How wide the laser hit area is
+    
+    for (let i = aliens.length - 1; i >= 0; i--) {
+        const alien = aliens[i];
+        if (!alien.alive) continue;
+        
+        const alienX = alien.mesh.position.x;
+        
+        // Check if alien is within laser's X range
+        if (Math.abs(alienX - laserX) < laserHitWidth) {
+            // Instant kill - reduce health to 0
+            alien.health = 0;
+            alien.alive = false;
+            destroyAlien(alien, i);
+            
+            // Points
+            const points = alien.type === 'charger' ? CONFIG.pointsPerAlien * 3 : CONFIG.pointsPerAlien;
+            score += points;
+            updateScoreDisplay();
+        }
+    }
+}
+
+function endLaser() {
+    if (laserBeam) {
+        scene.remove(laserBeam);
+        laserBeam = null;
+    }
+    laserActive = false;
+    updateLaserDisplay();
+}
+
+// ============================================================================
+// COLLISION DETECTION
+// ============================================================================
+function checkCollisions() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        const bulletPos = bullet.position;
+        
+        for (let j = aliens.length - 1; j >= 0; j--) {
+            const alien = aliens[j];
+            if (!alien.alive) continue;
+            
+            const alienPos = alien.mesh.position;
+            
+            // 2D distance on XZ plane (ignore Y height difference)
+            const dx = bulletPos.x - alienPos.x;
+            const dz = bulletPos.z - alienPos.z;
+            const distance2D = Math.sqrt(dx * dx + dz * dz);
+            
+            // Larger hitbox for chargers
+            const hitRadius = alien.type === 'charger' ? CONFIG.alienHitRadius * 1.3 : CONFIG.alienHitRadius;
+            
+            if (distance2D < hitRadius) {
+                // Hit! Remove bullet
+                scene.remove(bullet);
+                bullets.splice(i, 1);
+                
+                // Reduce health
+                alien.health--;
+                
+                if (alien.health <= 0) {
+                    // Alien destroyed
+                    alien.alive = false;
+                    destroyAlien(alien, j);
+                    
+                    // Chargers give more points
+                    const points = alien.type === 'charger' ? CONFIG.pointsPerAlien * 3 : CONFIG.pointsPerAlien;
+                    score += points;
+                    updateScoreDisplay();
+                } else {
+                    // Alien damaged but not dead - make it angry and charge!
+                    damageAlien(alien);
+                }
+                
+                break;
+            }
+        }
+    }
+}
+
+// Visual effect when alien is damaged but not killed
+function damageAlien(alien) {
+    // Flash white
+    alien.mesh.traverse((child) => {
+        if (child.isMesh && child.material) {
+            const originalColor = child.material.color.clone();
+            child.material.emissive = new THREE.Color(0xffffff);
+            child.material.emissiveIntensity = 2;
+            
+            setTimeout(() => {
+                child.material.emissive = new THREE.Color(0xff0000);
+                child.material.emissiveIntensity = 1;
+            }, 100);
+        }
+    });
+    
+    // If charger, start charging!
+    if (alien.type === 'charger') {
+        alien.isCharging = true;
+    }
+    
+    // Create small hit particles
+    createHitParticles(alien.mesh.position.clone());
+}
+
+function createHitParticles(position) {
+    for (let i = 0; i < 8; i++) {
+        const geometry = new THREE.SphereGeometry(0.08, 4, 4);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffaa00,
+            transparent: true,
+            opacity: 1
+        });
+        
+        const particle = new THREE.Mesh(geometry, material);
+        particle.position.copy(position);
+        
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2
+        );
+        
+        scene.add(particle);
+        
+        let life = 1.0;
+        function animateParticle() {
+            life -= 0.1;
+            particle.position.add(velocity);
+            particle.material.opacity = life;
+            
+            if (life > 0) {
+                requestAnimationFrame(animateParticle);
+            } else {
+                scene.remove(particle);
+            }
+        }
+        animateParticle();
+    }
+}
+
+// Animated alien destruction
+function destroyAlien(alien, index) {
+    const mesh = alien.mesh;
+    const startScale = mesh.scale.clone();
+    const duration = 300; // milliseconds
+    const startTime = Date.now();
+    
+    // Create explosion particles immediately
+    createExplosion(mesh.position.clone());
+    
+    function animateDestruction() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Scale down and spin
+        const scale = 1 - progress;
+        mesh.scale.set(
+            startScale.x * scale,
+            startScale.y * scale,
+            startScale.z * scale
+        );
+        mesh.rotation.y += 0.3;
+        mesh.rotation.x += 0.1;
+        
+        // Fade out materials
+        mesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+                if (!child.material.transparent) {
+                    child.material.transparent = true;
+                }
+                child.material.opacity = 1 - progress;
+            }
+        });
+        
+        if (progress < 1) {
+            requestAnimationFrame(animateDestruction);
+        } else {
+            // Fully remove from scene
+            scene.remove(mesh);
+            // Remove from aliens array
+            const idx = aliens.indexOf(alien);
+            if (idx > -1) {
+                aliens.splice(idx, 1);
+            }
+        }
+    }
+    
+    animateDestruction();
+}
+
+// ============================================================================
+// EXPLOSION EFFECT
+// ============================================================================
+function createExplosion(position) {
+    const particleCount = 20;
+    const particles = [];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const geometry = new THREE.SphereGeometry(0.1, 4, 4);
+        const material = new THREE.MeshBasicMaterial({
+            color: Math.random() > 0.5 ? 0xff6600 : 0xffff00,
+            transparent: true,
+            opacity: 1
+        });
+        
+        const particle = new THREE.Mesh(geometry, material);
+        particle.position.copy(position);
+        
+        // Random velocity
+        particle.userData.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.3,
+            (Math.random() - 0.5) * 0.3
+        );
+        particle.userData.life = 1.0;
+        
+        scene.add(particle);
+        particles.push(particle);
+    }
+    
+    // Animate particles
+    function animateExplosion() {
+        let allDead = true;
+        
+        particles.forEach((particle, index) => {
+            if (particle.userData.life > 0) {
+                allDead = false;
+                particle.position.add(particle.userData.velocity);
+                particle.userData.life -= 0.05;
+                particle.material.opacity = particle.userData.life;
+                particle.scale.multiplyScalar(0.95);
+            } else if (particle.parent) {
+                scene.remove(particle);
+            }
+        });
+        
+        if (!allDead) {
+            requestAnimationFrame(animateExplosion);
+        }
+    }
+    
+    animateExplosion();
+}
+
+// ============================================================================
+// ALIEN MOVEMENT
+// ============================================================================
+function getAlienSpeed() {
+    // Every 3 waves, aliens get 10% faster
+    const speedMultiplier = Math.pow(1.1, Math.floor((wave - 1) / 3));
+    return CONFIG.alienSpeed * speedMultiplier;
+}
+
+function updateAliens() {
+    const currentSpeed = getAlienSpeed();
+    
+    for (let i = aliens.length - 1; i >= 0; i--) {
+        const alien = aliens[i];
+        
+        if (alien.type === 'charger' && alien.isCharging) {
+            // Charger moves fast and toward player's X position
+            const playerX = playerShip ? playerShip.position.x : 0;
+            const dx = playerX - alien.mesh.position.x;
+            
+            // Move toward player X
+            alien.mesh.position.x += Math.sign(dx) * currentSpeed * 2;
+            
+            // Move forward fast
+            alien.mesh.position.z += alien.chargeSpeed;
+            
+            // Wobble aggressively while charging
+            alien.mesh.rotation.z = Math.sin(Date.now() * 0.02) * 0.2;
+        } else {
+            // Normal movement toward player (positive Z direction)
+            alien.mesh.position.z += currentSpeed;
+        }
+        
+        // Check if alien reached the player
+        if (alien.mesh.position.z >= CONFIG.playerZ - CONFIG.alienHitDistance) {
+            // Alien hit the player!
+            playerHit(alien, i);
+        }
+    }
+}
+
+function playerHit(alien, index) {
+    // Remove the alien that hit the player
+    createExplosion(alien.mesh.position.clone());
+    scene.remove(alien.mesh);
+    aliens.splice(index, 1);
+    
+    // Lose a life
+    lives--;
+    updateLivesDisplay();
+    
+    // Flash screen red
+    flashDamage();
+    
+    // Check for game over
+    if (lives <= 0) {
+        triggerGameOver();
+    }
+}
+
+function flashDamage() {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 0, 0, 0.3);
+        pointer-events: none;
+        z-index: 100;
+        animation: flashOut 0.3s ease-out forwards;
+    `;
+    
+    // Add keyframe animation
+    if (!document.getElementById('damage-flash-style')) {
+        const style = document.createElement('style');
+        style.id = 'damage-flash-style';
+        style.textContent = `
+            @keyframes flashOut {
+                from { opacity: 1; }
+                to { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 300);
+}
+
+function triggerGameOver() {
+    gameOver = true;
+    document.getElementById('final-score').textContent = score;
+    document.getElementById('game-over').classList.add('visible');
+    
+    // Setup restart button
+    document.getElementById('restart-btn').onclick = restartGame;
+}
+
+function restartGame() {
+    // Reset game state
+    score = 0;
+    wave = 1;
+    lives = CONFIG.maxLives;
+    gameOver = false;
+    gameStarted = true;
+    waveTransitioning = false;
+    
+    // Reset laser state
+    laserAvailable = false;
+    laserActive = false;
+    laserLastUsedWave = 0;
+    if (laserBeam) {
+        scene.remove(laserBeam);
+        laserBeam = null;
+    }
+    
+    // Clear all aliens and bullets
+    aliens.forEach(alien => scene.remove(alien.mesh));
+    aliens = [];
+    bullets.forEach(bullet => scene.remove(bullet));
+    bullets = [];
+    
+    // Reset player position
+    if (playerShip) {
+        playerShip.position.set(0, 0, CONFIG.playerZ);
+    }
+    
+    // Update UI
+    updateScoreDisplay();
+    updateWaveDisplay();
+    updateLivesDisplay();
+    updateLaserDisplay();
+    document.getElementById('game-over').classList.remove('visible');
+    
+    // Spawn new aliens
+    spawnAlienGrid();
+    showWaveAnnouncement();
+}
+
+function setupStartButton() {
+    document.getElementById('start-btn').onclick = startGame;
+}
+
+function startGame() {
+    if (gameStarted) return;
+    
+    gameStarted = true;
+    
+    // Hide start screen
+    document.getElementById('start-screen').classList.add('hidden');
+    
+    // Initialize game state
+    score = 0;
+    wave = 1;
+    lives = CONFIG.maxLives;
+    gameOver = false;
+    waveTransitioning = false;
+    
+    // Initialize laser state
+    laserAvailable = false;
+    laserActive = false;
+    laserLastUsedWave = 0;
+    
+    // Update UI
+    updateScoreDisplay();
+    updateWaveDisplay();
+    updateLivesDisplay();
+    updateLaserDisplay();
+    
+    // Spawn aliens and start
+    spawnAlienGrid();
+    showWaveAnnouncement();
+}
+
+// ============================================================================
+// UI UPDATES
+// ============================================================================
+function updateScoreDisplay() {
+    document.getElementById('score').textContent = score;
+}
+
+function updateWaveDisplay() {
+    document.getElementById('wave').textContent = wave;
+}
+
+function updateLivesDisplay() {
+    const heartsString = '❤️'.repeat(lives) + '🖤'.repeat(CONFIG.maxLives - lives);
+    document.getElementById('lives').textContent = heartsString;
+}
+
+function showWaveAnnouncement() {
+    const announcement = document.getElementById('wave-announcement');
+    announcement.textContent = `WAVE ${wave}`;
+    announcement.classList.add('visible');
+    
+    setTimeout(() => {
+        announcement.classList.remove('visible');
+    }, 2000);
+}
+
+// ============================================================================
+// WAVE MANAGEMENT
+// ============================================================================
+function checkWaveComplete() {
+    if (aliens.length === 0 && !waveTransitioning) {
+        waveTransitioning = true;
+        wave++;
+        updateWaveDisplay();
+        showWaveAnnouncement();
+        
+        // Check if laser becomes available this wave
+        checkLaserAvailability();
+        
+        // Small delay before spawning new wave
+        setTimeout(() => {
+            spawnAlienGrid();
+            waveTransitioning = false;
+        }, 1500);
+    }
+}
+
+// ============================================================================
+// WINDOW RESIZE
+// ============================================================================
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ============================================================================
+// GAME LOOP
+// ============================================================================
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Update shooting stars (always, even on start screen)
+    updateShootingStars();
+    
+    // Don't update game logic if game not started or game over
+    if (gameStarted && !gameOver) {
+        // Update player
+        updatePlayer();
+        
+        // Handle shooting
+        if (keys.shoot) {
+            shoot();
+        }
+        
+        // Handle laser
+        if (keys.laser) {
+            fireLaser();
+            keys.laser = false; // Prevent multiple fires
+        }
+        
+        // Update bullets
+        updateBullets();
+        
+        // Update laser beam
+        updateLaser();
+        
+        // Update aliens (move toward player)
+        updateAliens();
+        
+        // Check bullet-alien collisions
+        checkCollisions();
+        
+        // Check if wave complete
+        checkWaveComplete();
+    }
+    
+    // Render
+    renderer.render(scene, camera);
+}
+
+// ============================================================================
+// START THE GAME
+// ============================================================================
+init();
