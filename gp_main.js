@@ -822,7 +822,11 @@ function spawnAlienGrid() {
             const z = baseZ + randomZ;
             const y = CONFIG.alienStartY + randomY;
             
-            alienClone.position.set(x, y, z);
+            // Clamp to accessible area (within player bounds minus margin)
+            const maxX = CONFIG.playerBounds - 1;
+            const clampedX = Math.max(-maxX, Math.min(maxX, x));
+            
+            alienClone.position.set(clampedX, y, z);
             
             // Face forward (toward player)
             alienClone.rotation.y = 0;
@@ -883,7 +887,11 @@ function spawnChargerAlien(index = 0) {
     const z = CONFIG.alienStartZ - 8 - (index * 3);
     const y = CONFIG.alienStartY;
     
-    chargerClone.position.set(x, y, z);
+    // Clamp to accessible area (within player bounds minus margin)
+    const maxX = CONFIG.playerBounds - 1;
+    const clampedX = Math.max(-maxX, Math.min(maxX, x));
+    
+    chargerClone.position.set(clampedX, y, z);
     chargerClone.rotation.y = 0;
     
     // Enable shadows
