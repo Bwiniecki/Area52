@@ -1083,7 +1083,7 @@ function updateBullets() {
         const bullet = bullets[i];
         bullet.position.z -= CONFIG.bulletSpeed;
         
-        // Remove if off screen
+        // Remove if off screen (extended range to reach far aliens)
         if (bullet.position.z < -30) {
             scene.remove(bullet);
             bullets.splice(i, 1);
