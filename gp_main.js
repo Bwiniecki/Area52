@@ -818,9 +818,13 @@ function spawnAlienGrid() {
             const randomZ = (Math.random() - 0.5) * CONFIG.alienRandomOffset * 2;
             const randomY = (Math.random() - 0.5) * CONFIG.alienRandomOffset * 0.5;
             
-            const x = baseX + randomX;
+            let x = baseX + randomX;
             const z = baseZ + randomZ;
             const y = CONFIG.alienStartY + randomY;
+            
+            // Clamp X position to player's accessible bounds
+            const maxX = CONFIG.playerBounds - 1; // Leave 1 unit margin
+            x = Math.max(-maxX, Math.min(maxX, x));
             
             alienClone.position.set(x, y, z);
             
@@ -879,9 +883,13 @@ function spawnChargerAlien(index = 0) {
     
     // Spawn at spread X positions, far back
     const spreadX = (index - 0.5) * 6; // Spread chargers apart
-    const x = spreadX + (Math.random() - 0.5) * 3;
+    let x = spreadX + (Math.random() - 0.5) * 3;
     const z = CONFIG.alienStartZ - 8 - (index * 3);
     const y = CONFIG.alienStartY;
+    
+    // Clamp X position to player's accessible bounds
+    const maxX = CONFIG.playerBounds - 1; // Leave 1 unit margin
+    x = Math.max(-maxX, Math.min(maxX, x));
     
     chargerClone.position.set(x, y, z);
     chargerClone.rotation.y = 0;
