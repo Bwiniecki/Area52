@@ -56,6 +56,12 @@ let waveTransitioning = false;
 let gameOver = false;
 let gameStarted = false;
 
+// Delta time for frame-rate independence
+let lastFrameTime = 0;
+let deltaTime = 0;
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS; // ~16.67ms
+
 // Game mode: 'prototype' or 'full'
 let gameMode = 'prototype';
 
@@ -277,11 +283,13 @@ function updateShootingStars() {
         const shootingStar = shootingStars[i];
         const mesh = shootingStar.mesh;
         
-        // Move shooting star
-        mesh.position.add(shootingStar.velocity);
+        // Move shooting star (use deltaTime or 1 as fallback for start screen)
+        const dt = deltaTime || 1.0;
+        const velocity = shootingStar.velocity.clone().multiplyScalar(dt);
+        mesh.position.add(velocity);
         
         // Fade out over time
-        shootingStar.life -= 0.01;
+        shootingStar.life -= 0.01 * dt;
         mesh.children.forEach((child) => {
             if (child.material) {
                 child.material.opacity *= 0.99;
@@ -1032,10 +1040,10 @@ function updatePlayer() {
     if (!playerShip) return;
     
     if (keys.left) {
-        playerShip.position.x -= CONFIG.playerSpeed;
+        playerShip.position.x -= CONFIG.playerSpeed * deltaTime;
     }
     if (keys.right) {
-        playerShip.position.x += CONFIG.playerSpeed;
+        playerShip.position.x += CONFIG.playerSpeed * deltaTime;
     }
     
     // Constrain to bounds
@@ -1081,7 +1089,7 @@ function shoot() {
 function updateBullets() {
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
-        bullet.position.z -= CONFIG.bulletSpeed;
+        bullet.position.z -= CONFIG.bulletSpeed * deltaTime;
         
         // Remove if off screen (extended range to reach far aliens)
         if (bullet.position.z < -30) {
@@ -1487,16 +1495,16 @@ function updateAliens() {
             const dx = playerX - alien.mesh.position.x;
             
             // Move toward player X
-            alien.mesh.position.x += Math.sign(dx) * currentSpeed * 2;
+            alien.mesh.position.x += Math.sign(dx) * currentSpeed * 2 * deltaTime;
             
             // Move forward fast
-            alien.mesh.position.z += alien.chargeSpeed;
+            alien.mesh.position.z += alien.chargeSpeed * deltaTime;
             
             // Wobble aggressively while charging
             alien.mesh.rotation.z = Math.sin(Date.now() * 0.02) * 0.2;
         } else {
             // Normal movement toward player (positive Z direction)
-            alien.mesh.position.z += currentSpeed;
+            alien.mesh.position.z += currentSpeed * deltaTime;
         }
         
         // Check if alien reached the player
@@ -1701,8 +1709,16 @@ function onWindowResize() {
 // ============================================================================
 // GAME LOOP
 // ============================================================================
-function animate() {
+function animate(currentTime = 0) {
     requestAnimationFrame(animate);
+    
+    // Calculate delta time (time since last frame)
+    if (lastFrameTime === 0) lastFrameTime = currentTime;
+    const rawDelta = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+    
+    // Normalize delta time to 60 FPS (prevents huge jumps)
+    deltaTime = Math.min(rawDelta / FRAME_TIME, 2.0);
     
     // Update shooting stars (always, even on start screen)
     updateShootingStars();
