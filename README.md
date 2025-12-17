@@ -2,6 +2,8 @@
 
 **GROUP ID: 0323**
 
+**GAME LINK:  https://bwiniecki.github.io/Area52/ **
+
 A modern 3D remake of the classic Space Invaders arcade game built with Three.js. Battle waves of increasingly difficult aliens in immersive 3D space while dodging attacks and using special abilities.
 
 ---
@@ -261,30 +263,16 @@ Key parameters defined in `CONFIG` object:
 
 ---
 
-## Installation & Setup
+## Setup
 
 ### Prerequisites
 - Modern web browser with WebGL support
-- Local web server (required for ES6 modules)
 
 ### Quick Start
 
-1. **Clone or download** the project files
+1. Go to game link (https://bwiniecki.github.io/Area52/)
 
-2. **Start a local server**:
-   ```bash
-   # Using Python 3
-   python -m http.server 8000
-   
-   # Using Node.js (http-server)
-   npx http-server -p 8000
-   
-   # Using PHP
-   php -S localhost:8000
-   ```
-
-
-3. **Start Playing**:
+2. **Start Playing**:
    Click the "START GAME" button
 
 ---
