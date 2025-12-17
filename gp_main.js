@@ -418,6 +418,9 @@ function switchGameMode(mode) {
     laserActive = false;
     laserLastUsedWave = 0;
     
+    // Reset prototype rendering state to false (always start in full mode)
+    prototypeRendering = false;
+    
     // Reload models in new mode
     loadModels();
     
@@ -429,8 +432,10 @@ function switchGameMode(mode) {
     document.getElementById('game-over').classList.remove('visible');
     document.getElementById('start-screen').classList.remove('hidden');
     
-    // Update button states
-    document.getElementById('prototype-btn').classList.toggle('active', mode === 'prototype');
+    // Update button states and text
+    const prototypeBtn = document.getElementById('prototype-btn');
+    prototypeBtn.classList.remove('active');
+    prototypeBtn.textContent = 'PROTOTYPE';
     document.getElementById('full-btn').classList.toggle('active', mode === 'full');
 }
 
@@ -1058,8 +1063,63 @@ function setupModeToggle() {
     });
     
     document.getElementById('full-btn').addEventListener('click', () => {
-        switchGameMode('full');
+        returnToMenu();
     });
+}
+
+// Function to return to menu (called by MENU button)
+function returnToMenu() {
+    // Only return to menu if game is started
+    if (!gameStarted && !gameOver) return;
+    
+    // Clear current game state
+    if (playerShip) {
+        scene.remove(playerShip);
+        playerShip = null;
+    }
+    aliens.forEach(alien => scene.remove(alien.mesh));
+    aliens = [];
+    bullets.forEach(bullet => scene.remove(bullet));
+    bullets = [];
+    if (laserBeam) {
+        scene.remove(laserBeam);
+        laserBeam = null;
+    }
+    
+    // Reset game state
+    score = 0;
+    wave = 1;
+    lives = CONFIG.maxLives;
+    gameOver = false;
+    gameStarted = false;
+    laserAvailable = false;
+    laserActive = false;
+    laserLastUsedWave = 0;
+    
+    // Reset prototype rendering state to false
+    prototypeRendering = false;
+    
+    // Reload models (recreate ship)
+    if (gameMode === 'prototype') {
+        createPlaceholderShip();
+    } else {
+        // For full mode, would need to reload or recreate
+        createPlaceholderShip(); // Fallback
+    }
+    
+    // Update UI
+    updateScoreDisplay();
+    updateWaveDisplay();
+    updateLivesDisplay();
+    updateLaserDisplay();
+    document.getElementById('game-over').classList.remove('visible');
+    document.getElementById('start-screen').classList.remove('hidden');
+    
+    // Update button states and text
+    const prototypeBtn = document.getElementById('prototype-btn');
+    prototypeBtn.classList.remove('active');
+    prototypeBtn.textContent = 'PROTOTYPE';
+    document.getElementById('full-btn').classList.add('active');
 }
 
 // ============================================================================
@@ -1746,16 +1806,29 @@ function restartGame() {
         laserBeam = null;
     }
     
+    // Reset prototype rendering to false (always restart in full mode)
+    prototypeRendering = false;
+    
     // Clear all aliens and bullets
     aliens.forEach(alien => scene.remove(alien.mesh));
     aliens = [];
     bullets.forEach(bullet => scene.remove(bullet));
     bullets = [];
     
-    // Reset player position
+    // Reset player position and rendering
     if (playerShip) {
-        playerShip.position.set(0, 0, CONFIG.playerZ);
+        scene.remove(playerShip);
+        playerShip = null;
     }
+    // Recreate ship in full mode
+    if (gameMode === 'prototype') {
+        createPlaceholderShip();
+    }
+    
+    // Update button state and text
+    const prototypeBtn = document.getElementById('prototype-btn');
+    prototypeBtn.classList.remove('active');
+    prototypeBtn.textContent = 'PROTOTYPE';
     
     // Update UI
     updateScoreDisplay();
@@ -1792,6 +1865,17 @@ function startGame() {
     laserAvailable = false;
     laserActive = false;
     laserLastUsedWave = 0;
+    
+    // Reset prototype rendering to false (always start in full mode)
+    prototypeRendering = false;
+    
+    // Update button states and text
+    const prototypeBtn = document.getElementById('prototype-btn');
+    prototypeBtn.classList.remove('active');
+    prototypeBtn.textContent = 'PROTOTYPE';
+    
+    const fullBtn = document.getElementById('full-btn');
+    fullBtn.classList.remove('active');
     
     // Update UI
     updateScoreDisplay();
@@ -1916,4 +2000,10 @@ function animate(currentTime = 0) {
 // ============================================================================
 // START THE GAME
 // ============================================================================
-init();
+// Ensure DOM is fully loaded before initializing
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOM is already loaded
+    init();
+}
