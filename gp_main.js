@@ -65,6 +65,9 @@ const FRAME_TIME = 1000 / TARGET_FPS; // ~16.67ms
 // Game mode: 'prototype' or 'full'
 let gameMode = 'prototype';
 
+// Prototype rendering mode (when true, uses primitive geometry)
+let prototypeRendering = false;
+
 // Laser state
 let laserAvailable = false;
 let laserActive = false;
@@ -808,14 +811,27 @@ function spawnAlienGrid() {
     
     for (let row = 0; row < rows && spawned < alienCount; row++) {
         for (let col = 0; col < cols && spawned < alienCount; col++) {
-            const alienClone = alienModel.clone();
+            let alienClone;
             
-            // Clone materials so each alien has independent materials
-            alienClone.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    child.material = child.material.clone();
-                }
-            });
+            // Create alien based on rendering mode
+            if (prototypeRendering) {
+                // Green circle for prototype mode
+                const geometry = new THREE.CircleGeometry(0.5, 32);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0x00ff00,
+                    side: THREE.DoubleSide 
+                });
+                alienClone = new THREE.Mesh(geometry, material);
+            } else {
+                alienClone = alienModel.clone();
+                
+                // Clone materials so each alien has independent materials
+                alienClone.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.material = child.material.clone();
+                    }
+                });
+            }
             
             // Base position
             const baseX = startX + col * CONFIG.alienSpacingX;
@@ -843,13 +859,15 @@ function spawnAlienGrid() {
             const scaleVar = 0.9 + Math.random() * 0.2;
             alienClone.scale.multiplyScalar(scaleVar);
             
-            // Enable shadows
-            alienClone.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
+            // Enable shadows (only if not in prototype mode)
+            if (!prototypeRendering) {
+                alienClone.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+            }
             
             scene.add(alienClone);
             
@@ -880,14 +898,25 @@ function spawnAlienGrid() {
 }
 
 function spawnChargerAlien(index = 0) {
-    const chargerClone = chargerAlienModel.clone();
+    let chargerClone;
     
-    // Clone materials so each charger has independent materials
-    chargerClone.traverse((child) => {
-        if (child.isMesh && child.material) {
-            child.material = child.material.clone();
-        }
-    });
+    // Create charger based on rendering mode
+    if (prototypeRendering) {
+        // Orange oval for prototype mode
+        const geometry = new THREE.SphereGeometry(0.6, 16, 16);
+        geometry.scale(1.5, 1, 1); // Make it oval (wider)
+        const material = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+        chargerClone = new THREE.Mesh(geometry, material);
+    } else {
+        chargerClone = chargerAlienModel.clone();
+        
+        // Clone materials so each charger has independent materials
+        chargerClone.traverse((child) => {
+            if (child.isMesh && child.material) {
+                child.material = child.material.clone();
+            }
+        });
+    }
     
     // Spawn at spread X positions, far back
     const spreadX = (index - 0.5) * 6; // Spread chargers apart
@@ -902,13 +931,15 @@ function spawnChargerAlien(index = 0) {
     chargerClone.position.set(x, y, z);
     chargerClone.rotation.y = 0;
     
-    // Enable shadows
-    chargerClone.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-        }
-    });
+    // Enable shadows (only if not in prototype mode)
+    if (!prototypeRendering) {
+        chargerClone.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+    }
     
     scene.add(chargerClone);
     
@@ -1023,7 +1054,7 @@ function setupMobileControls() {
 
 function setupModeToggle() {
     document.getElementById('prototype-btn').addEventListener('click', () => {
-        switchGameMode('prototype');
+        togglePrototypeRendering();
     });
     
     document.getElementById('full-btn').addEventListener('click', () => {
@@ -1031,7 +1062,130 @@ function setupModeToggle() {
     });
 }
 
+// ============================================================================
+// PROTOTYPE RENDERING TOGGLE
+// ============================================================================
+function togglePrototypeRendering() {
+    if (!gameStarted) return; // Only toggle during gameplay
+    
+    prototypeRendering = !prototypeRendering;
+    
+    // Update button state and text
+    const prototypeBtn = document.getElementById('prototype-btn');
+    prototypeBtn.classList.toggle('active', prototypeRendering);
+    prototypeBtn.textContent = prototypeRendering ? 'FULL MODE' : 'PROTOTYPE';
+    
+    // Update player ship
+    if (playerShip) {
+        updateShipRendering();
+    }
+    
+    // Update all aliens
+    aliens.forEach(alien => {
+        updateAlienRendering(alien);
+    });
+}
 
+function updateShipRendering() {
+    if (!playerShip) return;
+    
+    // Save position
+    const position = playerShip.position.clone();
+    
+    // Remove old ship
+    scene.remove(playerShip);
+    
+    if (prototypeRendering) {
+        // Create blue square for prototype mode
+        const geometry = new THREE.PlaneGeometry(1.5, 1.5);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x0000ff, 
+            side: THREE.DoubleSide 
+        });
+        playerShip = new THREE.Mesh(geometry, material);
+    } else {
+        // Restore original ship (recreate from model or placeholder)
+        if (gameMode === 'prototype') {
+            createPlaceholderShip();
+            playerShip.position.copy(position);
+            return; // createPlaceholderShip adds to scene
+        } else {
+            // For full mode, would need to clone the original model
+            // For now, just recreate placeholder as fallback
+            createPlaceholderShip();
+            playerShip.position.copy(position);
+            return;
+        }
+    }
+    
+    // Restore position and add to scene
+    playerShip.position.copy(position);
+    scene.add(playerShip);
+}
+
+function updateAlienRendering(alien) {
+    if (!alien.mesh) return;
+    
+    // Save position, rotation, scale
+    const position = alien.mesh.position.clone();
+    const rotation = alien.mesh.rotation.clone();
+    const scale = alien.mesh.scale.clone();
+    
+    // Remove old mesh
+    scene.remove(alien.mesh);
+    
+    if (prototypeRendering) {
+        // Create primitive geometry based on alien type
+        if (alien.type === 'charger') {
+            // Orange oval for charger aliens
+            const geometry = new THREE.SphereGeometry(0.6, 16, 16);
+            geometry.scale(1.5, 1, 1); // Make it oval (wider)
+            const material = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+            alien.mesh = new THREE.Mesh(geometry, material);
+        } else {
+            // Green circle for normal aliens
+            const geometry = new THREE.CircleGeometry(0.5, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x00ff00,
+                side: THREE.DoubleSide 
+            });
+            alien.mesh = new THREE.Mesh(geometry, material);
+        }
+    } else {
+        // Restore original model
+        if (alien.type === 'charger') {
+            alien.mesh = chargerAlienModel.clone();
+        } else {
+            alien.mesh = alienModel.clone();
+        }
+        
+        // Clone materials
+        alien.mesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+                child.material = child.material.clone();
+            }
+        });
+        
+        // Enable shadows
+        alien.mesh.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+    }
+    
+    // Restore transform
+    alien.mesh.position.copy(position);
+    alien.mesh.rotation.copy(rotation);
+    alien.mesh.scale.copy(scale);
+    
+    // Update bounding box
+    alien.boundingBox = new THREE.Box3().setFromObject(alien.mesh);
+    
+    // Add to scene
+    scene.add(alien.mesh);
+}
 
 // ============================================================================
 // PLAYER MOVEMENT

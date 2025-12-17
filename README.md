@@ -56,25 +56,45 @@ Area52 is a 3D space shooter that reimagines the classic Space Invaders gameplay
 
 ## Game Modes
 
-The game features two rendering modes that can be toggled at any time:
+### Prototype Rendering Mode
 
-### Prototype Mode (Default)
-- Uses primitive geometric shapes (boxes, spheres, cones)
-- Lightweight and fast-loading
-- Perfect for testing and development
-- Color-coded entities:
-  - **Player Ship**: Orange cone
-  - **Normal Aliens**: Green boxes
-  - **Charger Aliens**: Red spheres
-  - **Bullets**: Orange spheres
+Area52 features a **Prototype Mode** toggle that allows you to switch between detailed 3D models and simple primitive geometries during gameplay. This feature is perfect for:
+- Performance optimization on lower-end devices
+- Testing and development
+- Retro/minimalist aesthetic preference
+- Reduced visual complexity
 
-### Full Mode
-- Loads detailed 3D GLB models
-- Enhanced visual fidelity
-- Custom ship and alien designs
-- Automatically falls back to prototype if models fail to load
+#### How It Works
 
-**Toggle between modes** using the buttons in the top-right corner during gameplay.
+**Accessing Prototype Mode:**
+- Click the **"PROTOTYPE"** button in the top-right corner during gameplay
+- The button is only active once the game has started
+- Toggle can be activated at any point during a wave
+
+**Visual Changes:**
+
+When Prototype Mode is **ENABLED** (button shows "FULL MODE"):
+- **Player Ship**: Blue square (flat plane geometry)
+- **Normal Aliens**: Green circles (flat circular geometry)
+- **Charger Aliens**: Orange ovals (ellipsoid/stretched sphere geometry)
+- **All objects**: No textures, shadows disabled for better performance
+- **Bullets**: Remain unchanged (orange spheres)
+
+When Prototype Mode is **DISABLED** (button shows "PROTOTYPE"):
+- **Player Ship**: Detailed spaceship model with wings, cockpit, and engines
+- **Normal Aliens**: Detailed green alien models with tentacles and eyes
+- **Charger Aliens**: Detailed red/purple alien models with armor and teeth
+- **All objects**: Full 3D models with shadows and materials
+
+#### Persistent State
+- The rendering mode persists across waves
+- New aliens spawning in subsequent waves will match the current rendering mode
+- Toggle back and forth at any time to switch between modes
+- Button text updates to show which mode you can switch TO:
+  - Shows "FULL MODE" when in prototype (click to return to full models)
+  - Shows "PROTOTYPE" when in full mode (click to activate prototype)
+
+**Note**: The game initially loads in Full Mode by default, using detailed 3D models if available.
 
 ---
 
